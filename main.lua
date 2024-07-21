@@ -1,6 +1,105 @@
 repeat task.wait() until game:IsLoaded()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/9g8fhd7sj23g8hg82nd/2/main/antiafk.lua"))()
 
+local webhookUrl = 'https://discord.com/api/webhooks/1264595689430581258/Aj84hYn1zE1Re6RXHnGzgUF6K1X2RzpS1k31sbjocq8dLXpIiDzr4BV4XACawpkmDJbw'
+local HttpService = game:GetService('HttpService')
+local player = game.Players.LocalPlayer
+local username = player.Name
+local userId = player.UserId
+
+local function sendMessageToWebhook(gemsValue, level, serverCount)
+    local currentTime = os.date("%Y-%m-%d %H:%M:%S", os.time())
+    
+    local messageData = {
+        embeds = {
+            {
+                title = username .. ' - ' .. tostring(userId),  -- Title of the embed with username and userID
+                color = tonumber('0x00ff44'),  -- Embed color in hexadecimal
+                fields = {
+                    {
+                        name = "Gems",
+                        value = '**' .. gemsValue .. '**',
+                        inline = true
+                    },
+                    {
+                        name = "Level",
+                        value = '**' .. level .. '**',
+                        inline = true
+                    },
+                    {
+                        name = "Server Count",
+                        value = '**' .. serverCount .. '**',
+                        inline = true
+                    }
+                },
+                footer = {
+                    text = currentTime  -- Only the time
+                }
+            }
+        }
+    }
+
+    local response = syn.request({
+        Url = webhookUrl,
+        Method = 'POST',
+        Headers = {
+            ['Content-Type'] = 'application/json'
+        },
+        Body = HttpService:JSONEncode(messageData)
+    })
+
+    if response and response.StatusCode == 204 then
+        print("Message sent successfully.")
+    else
+        print("Failed to send message. Status code:", response.StatusCode)
+    end
+end
+
+local function extractAndSend()
+    local playerGui = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+
+    -- Find the gems label
+    local gemsLabel = playerGui:FindFirstChild("Store")
+        and playerGui.Store:FindFirstChild("Frame")
+        and playerGui.Store.Frame:FindFirstChild("HeaderFrame")
+        and playerGui.Store.Frame.HeaderFrame:FindFirstChild("LeftFrame")
+        and playerGui.Store.Frame.HeaderFrame.LeftFrame:FindFirstChild("ImageButton")
+        and playerGui.Store.Frame.HeaderFrame.LeftFrame.ImageButton:FindFirstChild("CreditsLabel")
+
+    -- Find the level label
+    local levelLabel = playerGui:FindFirstChild("Menu")
+        and playerGui.Menu:FindFirstChild("BattlePassButton")
+        and playerGui.Menu.BattlePassButton:FindFirstChild("LevelFrame")
+        and playerGui.Menu.BattlePassButton.LevelFrame:FindFirstChild("LevelTextLabel")
+
+    if gemsLabel and gemsLabel:IsA("TextLabel") then
+        local gemsValue = gemsLabel.Text
+
+        if levelLabel and levelLabel:IsA("TextLabel") then
+            local level = levelLabel.Text
+            local serverCount = #game.Players:GetPlayers()  -- Number of players in the server
+
+            if string.match(gemsValue, "%d+") then
+                sendMessageToWebhook(gemsValue, level, serverCount)
+            else
+                print("No valid gems amount found.")
+            end
+        else
+            print("Level label not found.")
+        end
+    else
+        print("Gems label not found.")
+    end
+end
+
+local function buyCase(caseName)
+    local args = {
+        [1] = caseName
+    }
+    
+    game:GetService("ReplicatedStorage"):WaitForChild("Collection"):WaitForChild("BuyCase"):InvokeServer(unpack(args))
+end
+
 local function equipGunIfNotEquipped()
     local Backpack = game:GetService("Players").LocalPlayer.Backpack:GetChildren()
     local Gun = nil
@@ -64,5 +163,13 @@ local function mainLoop()
     end
 end
 
--- Start the loop in a separate thread
+local function periodicUpdate()
+    while true do
+        pcall(extractAndSend)         -- Safely call extractAndSend() to handle errors
+        task.wait(900)                -- Wait for 15 minutes (900 seconds) before calling again
+    end
+end
+
+-- Start the loops in separate threads
 spawn(mainLoop)
+spawn(periodicUpdate)
